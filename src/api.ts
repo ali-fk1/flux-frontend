@@ -144,6 +144,34 @@ export async function postToX(text: string): Promise<any> {
   throw error;
 }
 
+type SchedulePostPayload = {
+  platform: "X";
+  text: string;
+  scheduled_at_utc: string;
+  user_time_zone: string;
+};
+
+export async function scheduleXPost(payload: SchedulePostPayload): Promise<any> {
+  const response = await authenticatedFetch(`${BASE_URL}/api/post/schedule`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error: any = new Error("Request failed");
+    error.status = response.status;
+    throw error;
+  }
+
+  const bodyText = await response.text();
+  if (!bodyText) return {};
+  try {
+    return JSON.parse(bodyText);
+  } catch {
+    return { message: bodyText };
+  }
+}
+
 // Generic social media connection function
 export async function connectSocialPlatform(platform: string) {
   // TODO: Replace with your generic social platform connection endpoint

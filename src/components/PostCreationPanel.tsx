@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -21,26 +21,21 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   CalendarIcon,
-  ImageIcon,
   X,
   Instagram,
   Linkedin,
   Clock,
-  Globe,
   AlertCircle,
-  MapPin,
   Plus,
   Upload,
   GripVertical,
-  Trash2,
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { postToX } from "@/api";
+import { postToX, scheduleXPost } from "@/api";
 
 interface MediaFile {
   id: string;
@@ -75,6 +70,7 @@ interface PostData {
     linkedin: boolean;
   };
   scheduledDate: Date | null;
+  scheduledTime: string;
   timezone: string;
   status: "draft" | "scheduled" | "posted" | "failed";
 }
@@ -85,79 +81,7 @@ const PLATFORM_LIMITS = {
   twitter: 4,
   linkedin: 9,
 };
-
-const timezones = [
-  // Americas
-  { value: "America/New_York", label: "(GMT-05:00) Eastern Time (US & Canada)", region: "Americas" },
-  { value: "America/Chicago", label: "(GMT-06:00) Central Time (US & Canada)", region: "Americas" },
-  { value: "America/Denver", label: "(GMT-07:00) Mountain Time (US & Canada)", region: "Americas" },
-  { value: "America/Los_Angeles", label: "(GMT-08:00) Pacific Time (US & Canada)", region: "Americas" },
-  { value: "America/Anchorage", label: "(GMT-09:00) Alaska Time", region: "Americas" },
-  { value: "Pacific/Honolulu", label: "(GMT-10:00) Hawaii Time", region: "Americas" },
-  { value: "America/Toronto", label: "(GMT-05:00) Toronto", region: "Americas" },
-  { value: "America/Vancouver", label: "(GMT-08:00) Vancouver", region: "Americas" },
-  { value: "America/Mexico_City", label: "(GMT-06:00) Mexico City", region: "Americas" },
-  { value: "America/Sao_Paulo", label: "(GMT-03:00) São Paulo", region: "Americas" },
-  { value: "America/Buenos_Aires", label: "(GMT-03:00) Buenos Aires", region: "Americas" },
-  { value: "America/Lima", label: "(GMT-05:00) Lima", region: "Americas" },
-  { value: "America/Bogota", label: "(GMT-05:00) Bogotá", region: "Americas" },
-  { value: "America/Santiago", label: "(GMT-03:00) Santiago", region: "Americas" },
-
-  // Europe
-  { value: "Europe/London", label: "(GMT+00:00) London", region: "Europe" },
-  { value: "Europe/Paris", label: "(GMT+01:00) Central European Time", region: "Europe" },
-  { value: "Europe/Berlin", label: "(GMT+01:00) Berlin", region: "Europe" },
-  { value: "Europe/Rome", label: "(GMT+01:00) Rome", region: "Europe" },
-  { value: "Europe/Madrid", label: "(GMT+01:00) Madrid", region: "Europe" },
-  { value: "Europe/Amsterdam", label: "(GMT+01:00) Amsterdam", region: "Europe" },
-  { value: "Europe/Brussels", label: "(GMT+01:00) Brussels", region: "Europe" },
-  { value: "Europe/Zurich", label: "(GMT+01:00) Zurich", region: "Europe" },
-  { value: "Europe/Vienna", label: "(GMT+01:00) Vienna", region: "Europe" },
-  { value: "Europe/Prague", label: "(GMT+01:00) Prague", region: "Europe" },
-  { value: "Europe/Warsaw", label: "(GMT+01:00) Warsaw", region: "Europe" },
-  { value: "Europe/Stockholm", label: "(GMT+01:00) Stockholm", region: "Europe" },
-  { value: "Europe/Oslo", label: "(GMT+01:00) Oslo", region: "Europe" },
-  { value: "Europe/Copenhagen", label: "(GMT+01:00) Copenhagen", region: "Europe" },
-  { value: "Europe/Helsinki", label: "(GMT+02:00) Helsinki", region: "Europe" },
-  { value: "Europe/Athens", label: "(GMT+02:00) Athens", region: "Europe" },
-  { value: "Europe/Istanbul", label: "(GMT+03:00) Istanbul", region: "Europe" },
-  { value: "Europe/Moscow", label: "(GMT+03:00) Moscow", region: "Europe" },
-
-  // Asia
-  { value: "Asia/Tokyo", label: "(GMT+09:00) Japan Standard Time", region: "Asia" },
-  { value: "Asia/Shanghai", label: "(GMT+08:00) China Standard Time", region: "Asia" },
-  { value: "Asia/Hong_Kong", label: "(GMT+08:00) Hong Kong", region: "Asia" },
-  { value: "Asia/Singapore", label: "(GMT+08:00) Singapore", region: "Asia" },
-  { value: "Asia/Seoul", label: "(GMT+09:00) Seoul", region: "Asia" },
-  { value: "Asia/Taipei", label: "(GMT+08:00) Taipei", region: "Asia" },
-  { value: "Asia/Bangkok", label: "(GMT+07:00) Bangkok", region: "Asia" },
-  { value: "Asia/Jakarta", label: "(GMT+07:00) Jakarta", region: "Asia" },
-  { value: "Asia/Manila", label: "(GMT+08:00) Manila", region: "Asia" },
-  { value: "Asia/Kuala_Lumpur", label: "(GMT+08:00) Kuala Lumpur", region: "Asia" },
-  { value: "Asia/Mumbai", label: "(GMT+05:30) Mumbai", region: "Asia" },
-  { value: "Asia/Kolkata", label: "(GMT+05:30) Kolkata", region: "Asia" },
-  { value: "Asia/Delhi", label: "(GMT+05:30) Delhi", region: "Asia" },
-  { value: "Asia/Dhaka", label: "(GMT+06:00) Dhaka", region: "Asia" },
-  { value: "Asia/Karachi", label: "(GMT+05:00) Karachi", region: "Asia" },
-  { value: "Asia/Dubai", label: "(GMT+04:00) Dubai", region: "Asia" },
-  { value: "Asia/Riyadh", label: "(GMT+03:00) Riyadh", region: "Asia" },
-  { value: "Asia/Tehran", label: "(GMT+03:30) Tehran", region: "Asia" },
-
-  // Africa
-  { value: "Africa/Cairo", label: "(GMT+02:00) Cairo", region: "Africa" },
-  { value: "Africa/Lagos", label: "(GMT+01:00) Lagos", region: "Africa" },
-  { value: "Africa/Johannesburg", label: "(GMT+02:00) Johannesburg", region: "Africa" },
-  { value: "Africa/Nairobi", label: "(GMT+03:00) Nairobi", region: "Africa" },
-  { value: "Africa/Casablanca", label: "(GMT+01:00) Casablanca", region: "Africa" },
-
-  // Oceania
-  { value: "Australia/Sydney", label: "(GMT+10:00) Sydney", region: "Oceania" },
-  { value: "Australia/Melbourne", label: "(GMT+10:00) Melbourne", region: "Oceania" },
-  { value: "Australia/Brisbane", label: "(GMT+10:00) Brisbane", region: "Oceania" },
-  { value: "Australia/Perth", label: "(GMT+08:00) Perth", region: "Oceania" },
-  { value: "Pacific/Auckland", label: "(GMT+12:00) Auckland", region: "Oceania" },
-  { value: "Pacific/Fiji", label: "(GMT+12:00) Fiji", region: "Oceania" },
-];
+const X_CHAR_LIMIT = 280;
 
 // Function to detect user's timezone
 const detectUserTimezone = (): string => {
@@ -168,20 +92,70 @@ const detectUserTimezone = (): string => {
   }
 };
 
-// Function to get current UTC offset for a timezone
-const getTimezoneOffset = (timezone: string): string => {
-  try {
-    const now = new Date();
-    const utc = new Date(now.getTime() + (now.getTimezoneOffset() * 60000));
-    const targetTime = new Date(utc.toLocaleString("en-US", { timeZone: timezone }));
-    const offset = (targetTime.getTime() - utc.getTime()) / (1000 * 60 * 60);
-    const sign = offset >= 0 ? "+" : "-";
-    const hours = Math.floor(Math.abs(offset));
-    const minutes = Math.round((Math.abs(offset) - hours) * 60);
-    return `GMT${sign}${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-  } catch (error) {
-    return "GMT+00:00";
+const getTimeZoneOffsetMinutes = (date: Date, timeZone: string): number => {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(date);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  const localTime = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second)
+  );
+  return (localTime - date.getTime()) / 60000;
+};
+
+const zonedTimeToUtc = (date: Date, timeZone: string): Date => {
+  const utcGuess = new Date(
+    Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds()
+    )
+  );
+  const offsetMinutes = getTimeZoneOffsetMinutes(utcGuess, timeZone);
+  return new Date(utcGuess.getTime() - offsetMinutes * 60000);
+};
+
+const buildScheduledUtcIso = (
+  date: Date,
+  time: string,
+  timeZone: string
+): string | null => {
+  if (!time) return null;
+  const [hours, minutes] = time.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return null;
   }
+  const localDateTime = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    hours,
+    minutes,
+    0,
+    0
+  );
+  const utcDate = zonedTimeToUtc(localDateTime, timeZone);
+  return utcDate.toISOString();
 };
 
 const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
@@ -199,11 +173,12 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
         content: initialPost.content,
         media: initialPost.media || [],
         platforms: {
-          instagram: initialPost.platforms.includes("instagram"),
-          twitter: initialPost.platforms.includes("twitter"),
-          linkedin: initialPost.platforms.includes("linkedin"),
+          instagram: false,
+          twitter: true,
+          linkedin: false,
         },
         scheduledDate: initialPost.scheduledTime,
+        scheduledTime: format(initialPost.scheduledTime, "HH:mm"),
         timezone: detectedTimezone,
         status: initialPost.status,
       };
@@ -213,10 +188,11 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
       media: [],
       platforms: {
         instagram: false,
-        twitter: false,
+        twitter: true,
         linkedin: false,
       },
       scheduledDate: null,
+      scheduledTime: "",
       timezone: detectedTimezone,
       status: "draft",
     };
@@ -227,6 +203,8 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isPosting, setIsPosting] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const comingSoon = useCallback(() => {
@@ -235,6 +213,13 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
       description: "This feature is coming soon.",
     });
   }, [toast]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Calculate the maximum allowed photos based on selected platforms
   const getMaxPhotoLimit = useCallback(() => {
@@ -389,61 +374,38 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
   const handlePlatformToggle = (
     platform: "instagram" | "twitter" | "linkedin",
   ) => {
-    // Only X (Twitter) is allowed for now
-    if (platform === "instagram" || platform === "linkedin") {
-      comingSoon();
+    if (platform !== "twitter") {
       return;
     }
 
-    const newPlatforms = {
-      ...postData.platforms,
-      [platform]: !postData.platforms[platform],
-    };
-    
-    setPostData({
-      ...postData,
-      platforms: newPlatforms,
+    setPostData((prev) => ({
+      ...prev,
+      platforms: {
+        instagram: false,
+        twitter: true,
+        linkedin: false,
+      },
+    }));
+    setErrors((prev) => {
+      const { platforms, ...rest } = prev;
+      return rest;
     });
-
-    // Check if media count exceeds new limit
-    const newMaxLimit = getMaxPhotoLimitForPlatforms(newPlatforms);
-    if (postData.media.length > newMaxLimit) {
-      setErrors(prev => ({
-        ...prev,
-        media: `Reduced to ${newMaxLimit} photos due to platform restrictions. Please remove ${postData.media.length - newMaxLimit} photo(s).`
-      }));
-    } else {
-      setErrors(prev => {
-        const { media, ...rest } = prev;
-        return rest;
-      });
-    }
-  };
-
-  const getMaxPhotoLimitForPlatforms = (platforms: typeof postData.platforms) => {
-    const selectedPlatforms = [];
-    if (platforms.instagram) selectedPlatforms.push(PLATFORM_LIMITS.instagram);
-    if (platforms.twitter) selectedPlatforms.push(PLATFORM_LIMITS.twitter);
-    if (platforms.linkedin) selectedPlatforms.push(PLATFORM_LIMITS.linkedin);
-    
-    if (selectedPlatforms.length === 0) return PLATFORM_LIMITS.instagram;
-    return Math.min(...selectedPlatforms);
   };
 
   const handleDateChange = (date: Date | undefined) => {
     if (date) {
       setPostData({ ...postData, scheduledDate: date });
+      setErrors((prev) => {
+        const { schedule, ...rest } = prev;
+        return rest;
+      });
     }
-  };
-
-  const handleTimezoneChange = (timezone: string) => {
-    setPostData({ ...postData, timezone });
   };
 
   const validateContent = (content: string) => {
     const newErrors: Record<string, string> = {};
 
-    if (postData.platforms.twitter && content.length > 280) {
+    if (content.length > X_CHAR_LIMIT) {
       newErrors.content = "X (Twitter) has a 280 character limit";
     }
 
@@ -454,15 +416,8 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (postData.platforms.twitter && postData.content.length > 280) {
+    if (postData.content.length > X_CHAR_LIMIT) {
       newErrors.content = "X (Twitter) has a 280 character limit";
-    }
-
-    if (
-      !postData.platforms.twitter &&
-      true
-    ) {
-      newErrors.platforms = "Select X to post";
     }
 
     setErrors(newErrors);
@@ -471,15 +426,6 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
 
   const handlePostNow = async () => {
     const text = postData.content.trim();
-
-    if (!postData.platforms.twitter) {
-      toast({
-        variant: "destructive",
-        title: "Select X first",
-        description: "Posting is only available for X right now.",
-      });
-      return;
-    }
 
     if (text.length === 0) {
       toast({
@@ -490,7 +436,7 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
       return;
     }
 
-    if (text.length > 280) {
+    if (text.length > X_CHAR_LIMIT) {
       toast({
         variant: "destructive",
         title: "Too long for X",
@@ -538,6 +484,84 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
     }
   };
 
+  const handleSchedule = async () => {
+    const text = postData.content.trim();
+
+    if (!postData.scheduledDate || !postData.scheduledTime) {
+      setErrors((prev) => ({
+        ...prev,
+        schedule: "Select both a date and time to schedule this post.",
+      }));
+      return;
+    }
+
+    if (text.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Content required",
+        description: "Please enter some text before scheduling.",
+      });
+      return;
+    }
+
+    if (text.length > X_CHAR_LIMIT) {
+      toast({
+        variant: "destructive",
+        title: "Too long for X",
+        description: "X (Twitter) has a 280 character limit.",
+      });
+      return;
+    }
+
+    const scheduledAtUtc = buildScheduledUtcIso(
+      postData.scheduledDate,
+      postData.scheduledTime,
+      postData.timezone
+    );
+    if (!scheduledAtUtc) {
+      setErrors((prev) => ({
+        ...prev,
+        schedule: "Select both a date and time to schedule this post.",
+      }));
+      return;
+    }
+
+    setIsScheduling(true);
+    try {
+      await scheduleXPost({
+        platform: "X",
+        text,
+        scheduled_at_utc: scheduledAtUtc,
+        user_time_zone: postData.timezone,
+      });
+      toast({
+        title: "Scheduled for X",
+        description: "Your post has been added to the queue.",
+        duration: 5000,
+      });
+      onClose();
+    } catch (err: any) {
+      const status = err?.status;
+      if (status === 401) {
+        toast({
+          variant: "destructive",
+          title: "Connect your X account first",
+          description: "Please connect X (Twitter) and try again.",
+          duration: 5000,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Scheduling failed",
+          description: "Please try again.",
+          duration: 5000,
+        });
+      }
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
   const handleSave = (asDraft: boolean = false) => {
     if (validateForm()) {
       const selectedPlatforms: ("instagram" | "twitter" | "linkedin")[] = [];
@@ -560,23 +584,8 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
   };
 
   const getCharacterLimit = () => {
-    if (postData.platforms.twitter) return 280;
-    if (postData.platforms.linkedin) return 3000;
-    return 2200; // Instagram
+    return X_CHAR_LIMIT;
   };
-
-  // Group timezones by region for better organization
-  const groupedTimezones = timezones.reduce((acc, tz) => {
-    if (!acc[tz.region]) {
-      acc[tz.region] = [];
-    }
-    acc[tz.region].push(tz);
-    return acc;
-  }, {} as Record<string, typeof timezones>);
-
-  // Get user's detected timezone info
-  const detectedTimezone = detectUserTimezone();
-  const detectedTimezoneInfo = timezones.find(tz => tz.value === detectedTimezone);
 
   const maxLimit = getMaxPhotoLimit();
   const currentCount = postData.media.length;
@@ -601,7 +610,9 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="content">Content</TabsTrigger>
-            <TabsTrigger value="media">Media</TabsTrigger>
+            <TabsTrigger value="media" disabled title="Coming soon">
+              Media (Coming soon)
+            </TabsTrigger>
             <TabsTrigger value="schedule">Schedule</TabsTrigger>
           </TabsList>
 
@@ -611,11 +622,7 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
               <div className="flex flex-wrap gap-3">
                 <div
                   className="flex items-center space-x-2 opacity-40 cursor-not-allowed"
-                  role="button"
-                  tabIndex={0}
-                  aria-disabled="true"
-                  onClick={comingSoon}
-                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && comingSoon()}
+                  title="Coming soon"
                 >
                   <Switch
                     id="instagram"
@@ -644,11 +651,7 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
 
                 <div
                   className="flex items-center space-x-2 opacity-40 cursor-not-allowed"
-                  role="button"
-                  tabIndex={0}
-                  aria-disabled="true"
-                  onClick={comingSoon}
-                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && comingSoon()}
+                  title="Coming soon"
                 >
                   <Switch
                     id="linkedin"
@@ -897,15 +900,6 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
           </TabsContent>
 
           <TabsContent value="schedule" className="space-y-6">
-            <div
-              className="relative"
-              onClick={comingSoon}
-              role="button"
-              tabIndex={0}
-              aria-disabled="true"
-              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && comingSoon()}
-            >
-              <div className="opacity-40 pointer-events-none space-y-6">
             <div className="space-y-3">
               <Label>Schedule Date</Label>
               <Popover>
@@ -941,27 +935,13 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
                   <Input
                     type="time"
                     className="h-11"
-                    value={
-                      postData.scheduledDate
-                        ? format(postData.scheduledDate, "HH:mm")
-                        : ""
-                    }
+                    value={postData.scheduledTime}
                     onChange={(e) => {
-                      if (postData.scheduledDate) {
-                        const [hours, minutes] = e.target.value
-                          .split(":")
-                          .map(Number);
-                        const newDate = new Date(postData.scheduledDate);
-                        newDate.setHours(hours, minutes);
-                        setPostData({ ...postData, scheduledDate: newDate });
-                      } else {
-                        const now = new Date();
-                        const [hours, minutes] = e.target.value
-                          .split(":")
-                          .map(Number);
-                        now.setHours(hours, minutes);
-                        setPostData({ ...postData, scheduledDate: now });
-                      }
+                      setPostData({ ...postData, scheduledTime: e.target.value });
+                      setErrors((prev) => {
+                        const { schedule, ...rest } = prev;
+                        return rest;
+                      });
                     }}
                   />
                 </div>
@@ -969,11 +949,11 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
                   <Label className="text-xs text-muted-foreground">Quick Set</Label>
                   <Select
                     onValueChange={(value) => {
-                      const now = new Date();
-                      const [hours, minutes] = value.split(":").map(Number);
-                      const newDate = postData.scheduledDate ? new Date(postData.scheduledDate) : new Date();
-                      newDate.setHours(hours, minutes);
-                      setPostData({ ...postData, scheduledDate: newDate });
+                      setPostData({ ...postData, scheduledTime: value });
+                      setErrors((prev) => {
+                        const { schedule, ...rest } = prev;
+                        return rest;
+                      });
                     }}
                   >
                     <SelectTrigger className="h-11">
@@ -989,71 +969,26 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
                   </Select>
                 </div>
               </div>
+              {errors.schedule && (
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> {errors.schedule}
+                </p>
+              )}
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="timezone">Timezone</Label>
-                {detectedTimezoneInfo && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-6 px-2"
-                    onClick={() => handleTimezoneChange(detectedTimezone)}
-                  >
-                    <MapPin className="h-3 w-3 mr-1" />
-                    Use detected
-                  </Button>
-                )}
+            <div className="space-y-2">
+              <div className="text-sm text-muted-foreground">
+                Timezone: {postData.timezone} (auto-detected)
               </div>
-              
-              {detectedTimezoneInfo && postData.timezone !== detectedTimezone && (
-                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-md">
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    Detected: {detectedTimezoneInfo.label}
-                  </div>
-                </div>
-              )}
-
-              <Select
-                value={postData.timezone}
-                onValueChange={handleTimezoneChange}
-              >
-                <SelectTrigger className="h-11">
-                  <Globe className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Select timezone" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {Object.entries(groupedTimezones).map(([region, tzList]) => (
-                    <div key={region}>
-                      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground bg-muted/50">
-                        {region}
-                      </div>
-                      {tzList.map((tz) => (
-                        <SelectItem key={tz.value} value={tz.value}>
-                          <div className="flex flex-col">
-                            <span>{tz.label}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {tz.value.replace(/_/g, " ")}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </div>
-                  ))}
-                </SelectContent>
-              </Select>
-              
               <div className="text-xs text-muted-foreground">
-                Current time in {postData.timezone.split('/')[1]?.replace(/_/g, ' ')}: {
-                  new Date().toLocaleString("en-US", {
-                    timeZone: postData.timezone,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                  })
-                }
+                Current time in{" "}
+                {postData.timezone.split("/").slice(-1)[0]?.replace(/_/g, " ")}:{" "}
+                {currentTime.toLocaleString("en-US", {
+                  timeZone: postData.timezone,
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })}
               </div>
             </div>
 
@@ -1062,19 +997,27 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
                 Scheduling Options
               </Label>
               <div className="grid grid-cols-2 gap-3 mt-3">
-                <Button variant="outline" className="w-full h-11">
+                <Button
+                  variant="outline"
+                  className="w-full h-11"
+                  onClick={handlePostNow}
+                  disabled={isPosting || isScheduling}
+                >
                   <Clock className="mr-2 h-4 w-4" />
                   Post Now
                 </Button>
-                <Button variant="outline" className="w-full h-11">
+                <Button
+                  variant="outline"
+                  className="w-full h-11"
+                  onClick={handleSchedule}
+                  disabled={isPosting || isScheduling}
+                >
                   <Plus className="mr-2 h-4 w-4" />
-                  Add to Queue
+                  {isScheduling ? "Scheduling..." : "Add to Queue"}
                 </Button>
               </div>
             </div>
-              </div>
-              <div className="absolute inset-0 cursor-not-allowed" />
-            </div>
+              
           </TabsContent>
         </Tabs>
       </div>
@@ -1094,7 +1037,7 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
           </Button>
           <Button
             onClick={handlePostNow}
-            disabled={isPosting}
+            disabled={isPosting || isScheduling}
             className="transition-all"
           >
             {isPosting ? (
