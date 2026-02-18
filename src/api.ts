@@ -152,7 +152,7 @@ type SchedulePostPayload = {
 };
 
 export async function scheduleXPost(payload: SchedulePostPayload): Promise<any> {
-  const response = await authenticatedFetch(`${BASE_URL}/api/post/schedule`, {
+  const response = await authenticatedFetch(`${BASE_URL}/api/schedule`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

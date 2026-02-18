@@ -928,26 +928,64 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
             </div>
 
             <div className="space-y-3">
-              <Label>Schedule Time</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center justify-between">
+                <Label>Schedule Time</Label>
+                {postData.scheduledTime && (
+                  <div className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {(() => {
+                      const [hours, minutes] = postData.scheduledTime.split(":").map(Number);
+                      const date = new Date();
+                      date.setHours(hours, minutes);
+                      return format(date, "h:mm a");
+                    })()}
+                  </div>
+                )}
+              </div>
+              
+              <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Time</Label>
-                  <Input
-                    type="time"
-                    className="h-11"
-                    value={postData.scheduledTime}
-                    onChange={(e) => {
-                      setPostData({ ...postData, scheduledTime: e.target.value });
-                      setErrors((prev) => {
-                        const { schedule, ...rest } = prev;
-                        return rest;
-                      });
-                    }}
-                  />
+                  <Label className="text-xs text-muted-foreground">Select Time</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="time"
+                      className="h-11 flex-1"
+                      value={postData.scheduledTime}
+                      onChange={(e) => {
+                        setPostData({ ...postData, scheduledTime: e.target.value });
+                        setErrors((prev) => {
+                          const { schedule, ...rest } = prev;
+                          return rest;
+                        });
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 px-3 gap-2"
+                      onClick={() => {
+                        const now = new Date();
+                        const timeString = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+                        setPostData({ ...postData, scheduledTime: timeString });
+                        setErrors((prev) => {
+                          const { schedule, ...rest } = prev;
+                          return rest;
+                        });
+                      }}
+                      title="Set time to now"
+                      aria-label="Set time to now"
+                    >
+                      <Clock className="h-4 w-4" />
+                      <span className="hidden sm:inline">Set to now</span>
+                      <span className="sm:hidden">Now</span>
+                    </Button>
+                  </div>
                 </div>
+                
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Quick Set</Label>
+                  <Label className="text-xs text-muted-foreground">Or choose a preset</Label>
                   <Select
+                    value={postData.scheduledTime && ["09:00", "12:00", "15:00", "18:00", "21:00"].includes(postData.scheduledTime) ? postData.scheduledTime : ""}
                     onValueChange={(value) => {
                       setPostData({ ...postData, scheduledTime: value });
                       setErrors((prev) => {
@@ -957,7 +995,7 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
                     }}
                   >
                     <SelectTrigger className="h-11">
-                      <SelectValue placeholder="Quick times" />
+                      <SelectValue placeholder="Select a preset time" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="09:00">9:00 AM</SelectItem>
@@ -969,6 +1007,7 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
                   </Select>
                 </div>
               </div>
+              
               {errors.schedule && (
                 <p className="text-sm text-destructive flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" /> {errors.schedule}
