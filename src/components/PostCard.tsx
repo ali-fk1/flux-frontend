@@ -18,6 +18,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface Post {
   id: string;
@@ -50,6 +51,12 @@ const platformIcons = {
   linkedin: <Linkedin className="h-5 w-5 text-[#0077B5]" />,
 };
 
+const platformLabels: Record<Post["platforms"][number], string> = {
+  instagram: "Instagram",
+  twitter: "X",
+  linkedin: "LinkedIn",
+};
+
 const PostCard: React.FC<PostCardProps> = ({
   post = {
     id: "post-1",
@@ -71,6 +78,128 @@ const PostCard: React.FC<PostCardProps> = ({
   const handleDelete = () => onDelete?.(post.id);
   const handleReschedule = () => onReschedule?.(new Date());
 
+  const statusLabel =
+    post.status.charAt(0).toUpperCase() + post.status.slice(1);
+  const scheduledLabel = post.scheduledTime.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const platformsForDisplay =
+    post.platforms.length > 0 ? post.platforms : (["twitter"] as const);
+
+  if (isListView) {
+    const hasMedia = !!post.media;
+    return (
+      <TooltipProvider>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18 }}
+        >
+          <Card className="w-full border border-border/50 bg-card shadow-sm">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-3">
+                <div className="shrink-0 text-xs sm:text-sm text-muted-foreground tabular-nums flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>{scheduledLabel}</span>
+                </div>
+
+                <div className="min-w-0 flex-1 flex items-center gap-3">
+                  {hasMedia ? (
+                    <div className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 overflow-hidden rounded-md bg-muted">
+                      <img
+                        src={post.media}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-md bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 border border-border/40" />
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {platformsForDisplay.map((platform, idx) => (
+                          <div
+                            key={`${platform}-${idx}`}
+                            className="flex items-center"
+                            title={platformLabels[platform]}
+                          >
+                            {platformIcons[platform]}
+                          </div>
+                        ))}
+                      </div>
+                      <Badge className={statusColors[post.status]}>
+                        {statusLabel}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 truncate text-sm text-foreground">
+                      {post.content}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleEdit}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Edit post</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDuplicate}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Duplicate post</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDelete}
+                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Delete post</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <TooltipProvider>
       <motion.div
@@ -83,65 +212,61 @@ const PostCard: React.FC<PostCardProps> = ({
         className={isListView ? "" : "cursor-grab active:cursor-grabbing"}
       >
         <Card
-          className={`${isListView ? "w-full" : "w-[300px]"} bg-white border-2 border-gray-100 shadow-sm hover:shadow-md transition-all duration-200`}
+          className={cn(
+            "w-[300px] overflow-hidden border border-border/50 bg-card shadow-sm hover:shadow-md transition-shadow duration-200"
+          )}
         >
           <CardContent className="p-0">
             {/* Platform Icons */}
-            <div className="flex items-center justify-between p-3 border-b border-gray-100">
-              <div className="flex space-x-2">
-                {post.platforms.map((platform, index) => (
+            <div className="flex items-center justify-between p-3 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                {platformsForDisplay.map((platform, index) => (
                   <div
                     key={`${platform}-${index}`}
                     className="flex items-center"
+                    title={platformLabels[platform]}
                   >
                     {platformIcons[platform]}
                   </div>
                 ))}
               </div>
               <Badge className={statusColors[post.status]}>
-                {post.status.charAt(0).toUpperCase() + post.status.slice(1)}
+                {statusLabel}
               </Badge>
             </div>
 
             {/* Content Preview */}
             <div className="p-3">
               {post.media ? (
-                <div className="flex">
-                  <div className="w-16 h-16 mr-3 rounded-md overflow-hidden flex-shrink-0">
+                <div className="space-y-3">
+                  <div className="aspect-video w-full overflow-hidden rounded-lg bg-muted">
                     <img
                       src={post.media}
-                      alt="Post media"
-                      className="w-full h-full object-cover"
+                      alt=""
+                      className="h-full w-full object-cover"
                     />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-700 line-clamp-3">
-                      {post.content}
-                    </p>
-                  </div>
+                  <p className="text-sm text-foreground line-clamp-3 leading-relaxed">
+                    {post.content}
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-700 leading-relaxed">
+                <div className="rounded-lg border border-border/40 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 px-4 py-5">
+                  <p className="text-center text-base font-semibold leading-snug text-foreground line-clamp-4">
                     {post.content}
                   </p>
                 </div>
               )}
 
               {/* Scheduled Time */}
-              <div className="mt-3 text-xs text-gray-500 flex items-center">
+              <div className="mt-3 text-xs text-muted-foreground flex items-center">
                 <Calendar className="h-3 w-3 mr-1" />
-                {post.scheduledTime.toLocaleString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {scheduledLabel}
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex justify-end p-2 bg-gray-50 rounded-b-xl">
+            <div className="flex justify-end p-2 bg-muted/30">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -196,7 +321,7 @@ const PostCard: React.FC<PostCardProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={handleDelete}
-                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
