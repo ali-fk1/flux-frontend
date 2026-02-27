@@ -35,7 +35,9 @@ export async function fetchWithAuth<T = any>(
   // If unauthorized, logout user (backend handles token refresh via cookies)
   if (response.status === 401) {
     await handleLogout();
-    throw new Error("Session expired. Please log in again.");
+    const err = new Error("Unauthorized") as Error & { status?: number };
+    err.status = 401;
+    throw err;
   }
 
   // Handle non-OK responses
@@ -47,7 +49,9 @@ export async function fetchWithAuth<T = any>(
     } catch {
       errorMessage = response.statusText || errorMessage;
     }
-    throw new Error(errorMessage);
+    const err = new Error(errorMessage) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
   }
 
   // Parse response
@@ -94,3 +98,32 @@ export const api = {
 };
 
 export { API_BASE_URL };
+
+// Types for scheduled posts API
+export interface ScheduledPost {
+  id: string;
+  content: string;
+  scheduledAtUtc: string;
+  status: string;
+  mediaUrl: string | null;
+}
+
+export interface ScheduledPostsResponse {
+  content: ScheduledPost[];
+  nextCursor: string | null;
+  hasNext: boolean;
+}
+
+/** Fetch scheduled posts with cursor-based pagination. */
+export async function getScheduledPosts(params?: {
+  cursor?: string | null;
+  size?: number;
+}): Promise<ScheduledPostsResponse> {
+  const searchParams = new URLSearchParams();
+  searchParams.set("status", "scheduled");
+  searchParams.set("size", String(params?.size ?? 20));
+  if (params?.cursor != null) {
+    searchParams.set("cursor", params.cursor);
+  }
+  return api.get<ScheduledPostsResponse>(`/api/posts?${searchParams.toString()}`);
+}

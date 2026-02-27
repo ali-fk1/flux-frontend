@@ -539,6 +539,8 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
         description: "Your post has been added to the queue.",
         duration: 5000,
       });
+      // Event-driven refetch for scheduled posts (no polling)
+      window.dispatchEvent(new CustomEvent("scheduled-posts:changed"));
       onClose();
     } catch (err: any) {
       const status = err?.status;

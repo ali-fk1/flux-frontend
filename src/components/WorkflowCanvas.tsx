@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Plus, Grid, List, Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PostCard from "./PostCard";
 import PostCreationPanel from "./PostCreationPanel";
 import CalendarView from "./CalendarView";
+import { getScheduledPosts, type ScheduledPost } from "@/services/api";
+import { useNavigate } from "react-router-dom";
 
 interface Post {
   id: string;
@@ -20,43 +22,121 @@ interface WorkflowCanvasProps {
   initialPosts?: Post[];
 }
 
+function mapScheduledToPost(p: ScheduledPost): Post {
+  return {
+    id: p.id,
+    content: p.content,
+    media: p.mediaUrl ?? undefined,
+    // Backend scheduled posts endpoint currently doesn't include platform metadata.
+    // Scheduling in this UI is currently for X only, so we display it as X (twitter icon).
+    platforms: ["twitter"],
+    scheduledTime: new Date(p.scheduledAtUtc),
+    status: "scheduled",
+  };
+}
+
 const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
-  const [posts, setPosts] = useState<Post[]>(
-    initialPosts.length > 0
-      ? initialPosts
-      : [
-          {
-            id: "1",
-            content: "Check out our new product launch! #innovation",
-            media:
-              "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=500&q=80",
-            platforms: ["instagram", "twitter"],
-            scheduledTime: new Date(Date.now() + 86400000), // Tomorrow
-            status: "scheduled",
-          },
-          {
-            id: "2",
-            content: "Join us for a webinar on digital marketing strategies",
-            media:
-              "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500&q=80",
-            platforms: ["linkedin"],
-            scheduledTime: new Date(Date.now() + 172800000), // Day after tomorrow
-            status: "draft",
-          },
-          {
-            id: "3",
-            content:
-              "We're hiring! Check out our careers page for more information.",
-            platforms: ["linkedin", "twitter"],
-            scheduledTime: new Date(Date.now() + 259200000), // 3 days from now
-            status: "draft",
-          },
-        ],
-  );
+  const navigate = useNavigate();
+  const [posts, setPosts] = useState<Post[]>(initialPosts);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasNext, setHasNext] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const fetchingRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const [view, setView] = useState<"canvas" | "calendar" | "list">("canvas");
   const [isCreatingPost, setIsCreatingPost] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
+
+  const fetchFirstPage = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+    setLoading(true);
+    try {
+      // First request must be WITHOUT cursor
+      const res = await getScheduledPosts({ size: 20 });
+      setPosts(res.content.map(mapScheduledToPost));
+      setCursor(res.nextCursor);
+      setHasNext(res.hasNext);
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      if (err?.status === 401) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      // Keep existing UI stable; just stop loading.
+      console.error("Failed to load scheduled posts:", err);
+      setHasNext(false);
+    } finally {
+      fetchingRef.current = false;
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  const fetchNextPage = useCallback(async () => {
+    if (fetchingRef.current) return;
+    if (!hasNext) return;
+    if (cursor == null) return;
+
+    fetchingRef.current = true;
+    setLoading(true);
+    try {
+      const res = await getScheduledPosts({ size: 20, cursor });
+      setPosts((prev) => [...prev, ...res.content.map(mapScheduledToPost)]);
+      setCursor(res.nextCursor);
+      setHasNext(res.hasNext);
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      if (err?.status === 401) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      console.error("Failed to load more scheduled posts:", err);
+      setHasNext(false);
+    } finally {
+      fetchingRef.current = false;
+      setLoading(false);
+    }
+  }, [cursor, hasNext, navigate]);
+
+  const resetAndRefetch = useCallback(() => {
+    setPosts([]);
+    setCursor(null);
+    setHasNext(true);
+    fetchFirstPage();
+  }, [fetchFirstPage]);
+
+  useEffect(() => {
+    // Always show real scheduled posts when loading this page
+    resetAndRefetch();
+  }, [resetAndRefetch]);
+
+  // Event-driven refetch (no polling)
+  useEffect(() => {
+    const handler = () => resetAndRefetch();
+    window.addEventListener("scheduled-posts:changed", handler);
+    return () => window.removeEventListener("scheduled-posts:changed", handler);
+  }, [resetAndRefetch]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+        if (!hasNext) return;
+        if (loading) return;
+        fetchNextPage();
+      },
+      { root: null, rootMargin: "300px 0px", threshold: 0 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNext, loading]);
 
   const handleCreatePost = () => {
     setEditingPost(null);
@@ -175,6 +255,12 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
               </motion.div>
             ))}
           </div>
+          <div ref={sentinelRef} className="h-10" />
+          {loading && (
+            <div className="py-4 text-center text-sm text-muted-foreground">
+              Loading more…
+            </div>
+          )}
         </div>
       )}
 
@@ -215,6 +301,12 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
                 </motion.div>
               ))}
           </div>
+          <div ref={sentinelRef} className="h-10" />
+          {loading && (
+            <div className="py-4 text-center text-sm text-muted-foreground">
+              Loading more…
+            </div>
+          )}
         </div>
       )}
 
