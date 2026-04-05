@@ -6,7 +6,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PostCard from "./PostCard";
 import PostCreationPanel from "./PostCreationPanel";
 import CalendarView from "./CalendarView";
-import { getScheduledPosts, type ScheduledPost } from "@/services/api";
+import {
+  deleteScheduledPost,
+  getScheduledPosts,
+  type ScheduledPost,
+} from "@/services/api";
 import { useNavigate } from "react-router-dom";
 
 interface Post {
@@ -22,7 +26,7 @@ interface WorkflowCanvasProps {
   initialPosts?: Post[];
 }
 
-function mapScheduledToPost(p: ScheduledPost): Post {
+function toUiPost(p: ScheduledPost): Post {
   return {
     id: p.id,
     content: p.content,
@@ -37,7 +41,8 @@ function mapScheduledToPost(p: ScheduledPost): Post {
 
 const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
   const navigate = useNavigate();
-  const [posts, setPosts] = useState<Post[]>(initialPosts);
+  // Keep the full API object in state (including id/cursor identity fields).
+  const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -55,7 +60,7 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
     try {
       // First request must be WITHOUT cursor
       const res = await getScheduledPosts({ size: 20 });
-      setPosts(res.content.map(mapScheduledToPost));
+      setPosts(res.content);
       setCursor(res.nextCursor);
       setHasNext(res.hasNext);
     } catch (e) {
@@ -82,7 +87,7 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
     setLoading(true);
     try {
       const res = await getScheduledPosts({ size: 20, cursor });
-      setPosts((prev) => [...prev, ...res.content.map(mapScheduledToPost)]);
+      setPosts((prev) => [...prev, ...res.content]);
       setCursor(res.nextCursor);
       setHasNext(res.hasNext);
     } catch (e) {
@@ -143,8 +148,8 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
     setIsCreatingPost(true);
   };
 
-  const handleEditPost = (post: Post) => {
-    setEditingPost(post);
+  const handleEditPost = (post: ScheduledPost) => {
+    setEditingPost(toUiPost(post));
     setIsCreatingPost(true);
   };
 
@@ -160,29 +165,52 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
     setEditingPost(null);
   };
 
-  const handleDeletePost = (postId: string) => {
-    setPosts(posts.filter((post) => post.id !== postId));
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await deleteScheduledPost(postId);
+      // Remove by immutable identity only.
+      setPosts((prev) => prev.filter((post) => post.id !== postId));
+      window.dispatchEvent(new CustomEvent("scheduled-posts:changed"));
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      if (err?.status === 401) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      console.error("Failed to delete post:", err);
+    }
   };
 
-  const handleDuplicatePost = (post: Post) => {
+  const handleDuplicatePost = (post: ScheduledPost) => {
     const newPost = {
-      ...post,
+      ...toUiPost(post),
       id: Date.now().toString(),
       status: "draft" as const,
     };
-    setPosts([...posts, newPost]);
+    setPosts((prev) => [
+      ...prev,
+      {
+        id: newPost.id,
+        content: newPost.content,
+        scheduledAtUtc: newPost.scheduledTime.toISOString(),
+        status: newPost.status,
+        mediaUrl: newPost.media ?? null,
+      },
+    ]);
   };
 
   const handleReschedulePost = (postId: string, newTime: Date) => {
-    setPosts(
-      posts.map((post) => {
+    setPosts((prev) =>
+      prev.map((post) => {
         if (post.id === postId) {
-          return { ...post, scheduledTime: newTime };
+          return { ...post, scheduledAtUtc: newTime.toISOString() };
         }
         return post;
       }),
     );
   };
+
+  const uiPosts = posts.map(toUiPost);
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
@@ -266,8 +294,11 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
 
       {view === "calendar" && (
         <CalendarView
-          posts={posts}
-          onEditPost={handleEditPost}
+          posts={uiPosts}
+          onEditPost={(post) => {
+            const matched = posts.find((p) => p.id === post.id);
+            if (matched) handleEditPost(matched);
+          }}
           onReschedulePost={handleReschedulePost}
           onCreatePost={handleCreatePost}
         />
@@ -276,10 +307,11 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
       {view === "list" && (
         <div className="flex-1 p-6 overflow-auto">
           <div className="flex flex-col gap-4">
-            {posts
-              .sort(
-                (a, b) => a.scheduledTime.getTime() - b.scheduledTime.getTime(),
-              )
+            {[...posts].sort(
+              (a, b) =>
+                new Date(a.scheduledAtUtc).getTime() -
+                new Date(b.scheduledAtUtc).getTime(),
+            )
               .map((post) => (
                 <motion.div
                   key={post.id}

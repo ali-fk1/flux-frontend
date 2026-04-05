@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import type { ScheduledPost } from "@/services/api";
 
 interface Post {
   id: string;
@@ -29,10 +30,12 @@ interface Post {
   status: "draft" | "scheduled" | "posted" | "failed";
 }
 
+type PostCardPost = Post | ScheduledPost;
+
 export interface PostCardProps {
-  post?: Post;
-  onEdit?: (post: Post) => void;
-  onDuplicate?: (post: Post) => void;
+  post?: PostCardPost;
+  onEdit?: (post: PostCardPost) => void;
+  onDuplicate?: (post: PostCardPost) => void;
   onDelete?: (id: string) => void;
   onReschedule?: (newTime: Date) => void;
   isListView?: boolean;
@@ -73,25 +76,36 @@ const PostCard: React.FC<PostCardProps> = ({
   onReschedule,
   isListView = false,
 }) => {
+  const isApiScheduledPost = "scheduledAtUtc" in post;
+  const postId = post.id;
+  const postContent = post.content;
+  const postMedia = isApiScheduledPost ? post.mediaUrl ?? undefined : post.media;
+  const postStatus = (post.status || "scheduled") as Post["status"];
+  const postScheduledTime = isApiScheduledPost
+    ? new Date(post.scheduledAtUtc)
+    : post.scheduledTime;
+  const postPlatforms = isApiScheduledPost
+    ? (["twitter"] as const)
+    : (post.platforms.length > 0 ? post.platforms : (["twitter"] as const));
+
   const handleEdit = () => onEdit?.(post);
   const handleDuplicate = () => onDuplicate?.(post);
-  const handleDelete = () => onDelete?.(post.id);
+  const handleDelete = () => onDelete?.(postId);
   const handleReschedule = () => onReschedule?.(new Date());
 
   const statusLabel =
-    post.status.charAt(0).toUpperCase() + post.status.slice(1);
-  const scheduledLabel = post.scheduledTime.toLocaleString(undefined, {
+    postStatus.charAt(0).toUpperCase() + postStatus.slice(1);
+  const scheduledLabel = postScheduledTime.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
 
-  const platformsForDisplay =
-    post.platforms.length > 0 ? post.platforms : (["twitter"] as const);
+  const platformsForDisplay = postPlatforms;
 
   if (isListView) {
-    const hasMedia = !!post.media;
+    const hasMedia = !!postMedia;
     return (
       <TooltipProvider>
         <motion.div
@@ -111,7 +125,7 @@ const PostCard: React.FC<PostCardProps> = ({
                   {hasMedia ? (
                     <div className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 overflow-hidden rounded-md bg-muted">
                       <img
-                        src={post.media}
+                        src={postMedia}
                         alt=""
                         className="h-full w-full object-cover"
                       />
@@ -133,12 +147,12 @@ const PostCard: React.FC<PostCardProps> = ({
                           </div>
                         ))}
                       </div>
-                      <Badge className={statusColors[post.status]}>
+                      <Badge className={statusColors[postStatus]}>
                         {statusLabel}
                       </Badge>
                     </div>
                     <p className="mt-1 truncate text-sm text-foreground">
-                      {post.content}
+                      {postContent}
                     </p>
                   </div>
                 </div>
@@ -230,30 +244,30 @@ const PostCard: React.FC<PostCardProps> = ({
                   </div>
                 ))}
               </div>
-              <Badge className={statusColors[post.status]}>
+              <Badge className={statusColors[postStatus]}>
                 {statusLabel}
               </Badge>
             </div>
 
             {/* Content Preview */}
             <div className="p-3">
-              {post.media ? (
+              {postMedia ? (
                 <div className="space-y-3">
                   <div className="aspect-video w-full overflow-hidden rounded-lg bg-muted">
                     <img
-                      src={post.media}
+                      src={postMedia}
                       alt=""
                       className="h-full w-full object-cover"
                     />
                   </div>
                   <p className="text-sm text-foreground line-clamp-3 leading-relaxed">
-                    {post.content}
+                    {postContent}
                   </p>
                 </div>
               ) : (
                 <div className="rounded-lg border border-border/40 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 px-4 py-5">
                   <p className="text-center text-base font-semibold leading-snug text-foreground line-clamp-4">
-                    {post.content}
+                    {postContent}
                   </p>
                 </div>
               )}
