@@ -127,3 +127,8 @@ export async function getScheduledPosts(params?: {
   }
   return api.get<ScheduledPostsResponse>(`/api/posts?${searchParams.toString()}`);
 }
+
+/** Delete a scheduled post by id. */
+export async function deleteScheduledPost(id: string): Promise<void> {
+  await api.delete(`/api/posts/${id}`);
+}
