@@ -1,46 +1,43 @@
-// API Service with cookie-based authentication
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
+import keycloak from "@/lib/keycloak";
 
-type LogoutHandler = () => Promise<void>;
+export const API_BASE_URL =
+  import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
 
-let handleLogout: LogoutHandler = async () => {};
-
-// Initialize the API service with logout handler
-export function initializeApi(logoutHandler: LogoutHandler) {
-  handleLogout = logoutHandler;
-}
-
-// Fetch wrapper with cookie-based authentication
-export async function fetchWithAuth<T = any>(
+async function fetchWithAuth<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = endpoint.startsWith("http") ? endpoint : `${API_BASE_URL}${endpoint}`;
-  
-  const makeRequest = async (): Promise<Response> => {
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-      ...options.headers,
-    };
+  const url = endpoint.startsWith("http")
+    ? endpoint
+    : `${API_BASE_URL}${endpoint}`;
 
-    return fetch(url, {
-      ...options,
-      headers,
-      credentials: "include",
-    });
+  // Ensure token is fresh before every request
+  if (keycloak.isTokenExpired(10)) {
+    try {
+      await keycloak.updateToken(10);
+    } catch {
+      keycloak.logout({ redirectUri: window.location.origin });
+      throw new Error("Session expired");
+    }
+  }
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(keycloak.token
+      ? { Authorization: `Bearer ${keycloak.token}` }
+      : {}),
+    ...options.headers,
   };
 
-  let response = await makeRequest();
+  const response = await fetch(url, { ...options, headers });
 
-  // If unauthorized, logout user (backend handles token refresh via cookies)
   if (response.status === 401) {
-    await handleLogout();
+    keycloak.logout({ redirectUri: window.location.origin });
     const err = new Error("Unauthorized") as Error & { status?: number };
     err.status = 401;
     throw err;
   }
 
-  // Handle non-OK responses
   if (!response.ok) {
     let errorMessage = "Request failed";
     try {
@@ -54,12 +51,8 @@ export async function fetchWithAuth<T = any>(
     throw err;
   }
 
-  // Parse response
   const text = await response.text();
-  if (!text) {
-    return {} as T;
-  }
-
+  if (!text) return {} as T;
   try {
     return JSON.parse(text) as T;
   } catch {
@@ -67,7 +60,6 @@ export async function fetchWithAuth<T = any>(
   }
 }
 
-// Convenience methods
 export const api = {
   get: <T = any>(endpoint: string, options?: RequestInit) =>
     fetchWithAuth<T>(endpoint, { ...options, method: "GET" }),
@@ -97,9 +89,6 @@ export const api = {
     fetchWithAuth<T>(endpoint, { ...options, method: "DELETE" }),
 };
 
-export { API_BASE_URL };
-
-// Types for scheduled posts API
 export interface ScheduledPost {
   id: string;
   content: string;
@@ -114,7 +103,6 @@ export interface ScheduledPostsResponse {
   hasNext: boolean;
 }
 
-/** Fetch scheduled posts with cursor-based pagination. */
 export async function getScheduledPosts(params?: {
   cursor?: string | null;
   size?: number;
@@ -122,13 +110,12 @@ export async function getScheduledPosts(params?: {
   const searchParams = new URLSearchParams();
   searchParams.set("status", "scheduled");
   searchParams.set("size", String(params?.size ?? 20));
-  if (params?.cursor != null) {
-    searchParams.set("cursor", params.cursor);
-  }
-  return api.get<ScheduledPostsResponse>(`/api/posts?${searchParams.toString()}`);
+  if (params?.cursor != null) searchParams.set("cursor", params.cursor);
+  return api.get<ScheduledPostsResponse>(
+    `/api/posts?${searchParams.toString()}`
+  );
 }
 
-/** Delete a scheduled post by id. */
 export async function deleteScheduledPost(id: string): Promise<void> {
   await api.delete(`/api/posts/${id}`);
 }
