@@ -66,7 +66,6 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
     } catch (e) {
       const err = e as Error & { status?: number };
       if (err?.status === 401) {
-        navigate("/login", { replace: true });
         return;
       }
       // Keep existing UI stable; just stop loading.
@@ -93,7 +92,6 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
     } catch (e) {
       const err = e as Error & { status?: number };
       if (err?.status === 401) {
-        navigate("/login", { replace: true });
         return;
       }
       console.error("Failed to load more scheduled posts:", err);
@@ -174,7 +172,6 @@ const WorkflowCanvas = ({ initialPosts = [] }: WorkflowCanvasProps) => {
     } catch (e) {
       const err = e as Error & { status?: number };
       if (err?.status === 401) {
-        navigate("/login", { replace: true });
         return;
       }
       console.error("Failed to delete post:", err);

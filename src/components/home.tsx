@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useEffect } from "react";
-import keycloak from "@/lib/keycloak";
+import { login as keycloakLogin, register as keycloakRegister } from "@/lib/keycloak";
 import { useAuth } from "@/contexts/AuthContext";
 
 function Home() {
@@ -114,13 +114,13 @@ function Home() {
               <Button
                 variant="outline"
                 className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                onClick={() => keycloak.login()}
+                onClick={() => keycloakLogin()}
               >
                 Login
               </Button>
               <Button
                 size="lg"
-                onClick={() => keycloak.register()}
+                onClick={() => keycloakRegister()}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 group"
               >
                 Get Started
@@ -214,7 +214,7 @@ function Home() {
           </p>
           <Button
             size="lg"
-            onClick={() => keycloak.register()}
+            onClick={() => keycloakRegister()}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 group px-8 py-4 text-lg"
           >
             Start Scheduling Posts

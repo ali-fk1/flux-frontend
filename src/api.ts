@@ -1,4 +1,4 @@
-import keycloak from "@/lib/keycloak";
+import keycloak, { logout as keycloakLogout } from "@/lib/keycloak";
 
 export const BASE_URL =
   import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
@@ -11,7 +11,7 @@ async function authenticatedFetch(
     try {
       await keycloak.updateToken(10);
     } catch {
-      keycloak.logout({ redirectUri: window.location.origin });
+      keycloakLogout();
       throw new Error("Session expired");
     }
   }
