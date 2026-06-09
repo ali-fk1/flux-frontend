@@ -1,5 +1,15 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import keycloak from "@/lib/keycloak";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import keycloak, {
+  initKeycloak,
+  login as keycloakLogin,
+  logout as keycloakLogout,
+} from "@/lib/keycloak";
 
 export interface User {
   id: string;
@@ -19,28 +29,34 @@ const defaultAuthContext: AuthContextType = {
   user: null,
   isAuthenticated: false,
   isLoading: true,
-  login: () => { keycloak.login(); },
-  logout: () => { keycloak.logout({ redirectUri: window.location.origin }); },
+  login: () => {
+    keycloakLogin();
+  },
+  logout: () => {
+    keycloakLogout();
+  },
 };
 
 const AuthContext = createContext<AuthContextType>(defaultAuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    keycloak
-      .init({
-        onLoad: "check-sso",
-        silentCheckSsoRedirectUri:
-          window.location.origin + "/silent-check-sso.html",
-        pkceMethod: "S256",
-      })
+    let cancelled = false;
+
+    initKeycloak()
       .then(async (authenticated) => {
+        if (cancelled) return;
+
+        setIsAuthenticated(authenticated);
+
         if (authenticated) {
           try {
             const profile = await keycloak.loadUserProfile();
+            if (cancelled) return;
             setUser({
               id: keycloak.subject ?? "",
               email: profile.email ?? "",
@@ -50,11 +66,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   .join(" ") || profile.username,
             });
           } catch {
-            // Profile load failed — fall back to JWT claims
+            if (cancelled) return;
             setUser({
               id: keycloak.subject ?? "",
-              email: (keycloak.tokenParsed as any)?.email ?? "",
-              name: (keycloak.tokenParsed as any)?.name,
+              email: (keycloak.tokenParsed as Record<string, string>)?.email ?? "",
+              name: (keycloak.tokenParsed as Record<string, string>)?.name,
             });
           }
         }
@@ -63,24 +79,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error("Keycloak init error:", err);
       })
       .finally(() => {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       });
 
     keycloak.onTokenExpired = () => {
       keycloak.updateToken(30).catch(() => {
-        keycloak.logout({ redirectUri: window.location.origin });
+        keycloakLogout();
       });
+    };
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
-  const login = () => keycloak.login();
+  const login = useCallback(() => {
+    keycloakLogin();
+  }, []);
 
-  const logout = () =>
-    keycloak.logout({ redirectUri: window.location.origin });
+  const logout = useCallback(() => {
+    keycloakLogout();
+  }, []);
 
   const value: AuthContextType = {
     user,
-    isAuthenticated: !!user,
+    isAuthenticated,
     isLoading,
     login,
     logout,

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
@@ -7,8 +8,16 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, login } = useAuth();
+  const loginRequested = useRef(false);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !loginRequested.current) {
+      loginRequested.current = true;
+      login();
+    }
+  }, [isLoading, isAuthenticated, login]);
+
+  if (isLoading || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="flex flex-col items-center gap-4">
@@ -17,11 +26,6 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         </div>
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    login();
-    return null;
   }
 
   return <>{children}</>;

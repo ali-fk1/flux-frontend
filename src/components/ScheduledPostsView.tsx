@@ -174,7 +174,6 @@ export default function ScheduledPostsView() {
     } catch (e) {
       const err = e as Error & { status?: number };
       if (err?.status === 401) {
-        navigate("/login", { replace: true });
         return;
       }
       setError(err?.message || "Failed to load posts");
@@ -204,7 +203,6 @@ export default function ScheduledPostsView() {
     } catch (e) {
       const err = e as Error & { status?: number };
       if (err?.status === 401) {
-        navigate("/login", { replace: true });
         return;
       }
       setError(err?.message || "Failed to load posts");
