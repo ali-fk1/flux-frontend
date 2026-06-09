@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Sun,
   Moon,
@@ -42,7 +41,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import ConnectXButton from "@/components/ConnectXButton";
 
 const Dashboard = () => {
-  const navigate = useNavigate();
   const { user, logout, isLoading: authLoading } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -65,7 +63,6 @@ const Dashboard = () => {
     setIsLoggingOut(true);
     try {
       await logout();
-      navigate("/login", { replace: true });
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
