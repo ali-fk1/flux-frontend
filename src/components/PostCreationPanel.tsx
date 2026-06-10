@@ -474,8 +474,8 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
       } else {
         toast({
           variant: "destructive",
-          title: "Something went wrong.",
-          description: "Please try again.",
+          title: "Couldn't post to X",
+          description: "Try again in a moment.",
           duration: 5000,
         });
       }
@@ -592,13 +592,24 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
   const maxLimit = getMaxPhotoLimit();
   const currentCount = postData.media.length;
 
+  if (!isOpen) return null;
+
   return (
-    <motion.div
-      className="fixed inset-y-0 right-0 w-full sm:w-[450px] bg-background border-l shadow-xl z-50 flex flex-col"
-      initial={{ x: "100%" }}
-      animate={{ x: isOpen ? 0 : "100%" }}
-      transition={{ type: "spring", damping: 30, stiffness: 300 }}
-    >
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label={initialPost ? "Edit post" : "Create post"}
+        className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border bg-card shadow-xl sm:w-[450px]"
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+      >
       <div className="flex items-center justify-between p-4 border-b">
         <h2 className="text-xl font-semibold">
           {initialPost ? "Edit Post" : "Create New Post"}
@@ -676,7 +687,7 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
               <div className="flex justify-between items-center">
                 <Label htmlFor="content">Post Content</Label>
                 <span
-                  className={`text-xs ${postData.content.length > getCharacterLimit() ? "text-destructive" : "text-muted-foreground"}`}
+                  className={`font-mono text-xs tabular-nums ${postData.content.length > getCharacterLimit() ? "text-destructive" : "text-muted-foreground"}`}
                 >
                   {postData.content.length}/{getCharacterLimit()}
                 </span>
@@ -1035,26 +1046,43 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
 
             <div className="pt-2">
               <Label className="text-sm text-muted-foreground">
-                Scheduling Options
+                Actions
               </Label>
-              <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="mt-3 grid grid-cols-2 gap-3">
                 <Button
                   variant="outline"
-                  className="w-full h-11"
+                  className="h-11 w-full"
                   onClick={handlePostNow}
                   disabled={isPosting || isScheduling}
                 >
-                  <Clock className="mr-2 h-4 w-4" />
-                  Post Now
+                  {isPosting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Posting…
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="mr-2 h-4 w-4" />
+                      Post now
+                    </>
+                  )}
                 </Button>
                 <Button
-                  variant="outline"
-                  className="w-full h-11"
+                  className="h-11 w-full"
                   onClick={handleSchedule}
                   disabled={isPosting || isScheduling}
                 >
-                  <Plus className="mr-2 h-4 w-4" />
-                  {isScheduling ? "Scheduling..." : "Add to Queue"}
+                  {isScheduling ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Scheduling…
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Schedule post
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -1063,36 +1091,42 @@ const PostCreationPanel: React.FC<PostCreationPanelProps> = ({
         </Tabs>
       </div>
 
-      <div className="p-4 border-t flex justify-between">
-        <Button
-          variant="outline"
-          className="opacity-40 cursor-not-allowed"
-          aria-disabled="true"
-          onClick={comingSoon}
-        >
-          Save as Draft
+      <div className="flex items-center justify-between gap-3 border-t border-border bg-card p-4">
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
         </Button>
-        <div className="space-x-2">
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
+        <div className="flex items-center gap-2">
           <Button
+            variant="outline"
             onClick={handlePostNow}
             disabled={isPosting || isScheduling}
-            className="transition-all"
           >
             {isPosting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Posting...
+                Posting…
               </>
             ) : (
-              "Post Now"
+              "Post now"
+            )}
+          </Button>
+          <Button
+            onClick={handleSchedule}
+            disabled={isPosting || isScheduling}
+          >
+            {isScheduling ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Scheduling…
+              </>
+            ) : (
+              "Schedule post"
             )}
           </Button>
         </div>
       </div>
     </motion.div>
+    </>
   );
 };
 

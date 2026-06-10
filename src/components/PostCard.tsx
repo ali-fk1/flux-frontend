@@ -1,6 +1,5 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -9,9 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Instagram,
   Twitter,
-  Linkedin,
   Edit,
   Copy,
   Trash2,
@@ -20,6 +17,7 @@ import {
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { ScheduledPost } from "@/services/api";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 
 interface Post {
   id: string;
@@ -27,7 +25,7 @@ interface Post {
   media?: string;
   platforms: ("instagram" | "twitter" | "linkedin")[];
   scheduledTime: Date;
-  status: "draft" | "scheduled" | "posted" | "failed";
+  status: string;
 }
 
 type PostCardPost = Post | ScheduledPost;
@@ -41,32 +39,15 @@ export interface PostCardProps {
   isListView?: boolean;
 }
 
-const statusColors = {
-  draft: "bg-gray-200 text-gray-700",
-  scheduled: "bg-blue-100 text-blue-700",
-  posted: "bg-green-100 text-green-700",
-  failed: "bg-red-100 text-red-700",
-};
-
 const platformIcons = {
-  instagram: <Instagram className="h-5 w-5 text-[#E1306C]" />,
-  twitter: <Twitter className="h-5 w-5 text-[#1DA1F2]" />,
-  linkedin: <Linkedin className="h-5 w-5 text-[#0077B5]" />,
-};
-
-const platformLabels: Record<Post["platforms"][number], string> = {
-  instagram: "Instagram",
-  twitter: "X",
-  linkedin: "LinkedIn",
+  twitter: <Twitter className="h-4 w-4 text-foreground" aria-hidden="true" />,
 };
 
 const PostCard: React.FC<PostCardProps> = ({
   post = {
     id: "post-1",
-    content: "Check out our latest product launch! #exciting #newproduct",
-    media:
-      "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400&q=80",
-    platforms: ["instagram", "twitter"],
+    content: "Check out our latest product launch!",
+    platforms: ["twitter"],
     scheduledTime: new Date(),
     status: "scheduled",
   },
@@ -80,21 +61,11 @@ const PostCard: React.FC<PostCardProps> = ({
   const postId = post.id;
   const postContent = post.content;
   const postMedia = isApiScheduledPost ? post.mediaUrl ?? undefined : post.media;
-  const postStatus = (post.status || "scheduled") as Post["status"];
+  const postStatus = post.status || "scheduled";
   const postScheduledTime = isApiScheduledPost
     ? new Date(post.scheduledAtUtc)
     : post.scheduledTime;
-  const postPlatforms = isApiScheduledPost
-    ? (["twitter"] as const)
-    : (post.platforms.length > 0 ? post.platforms : (["twitter"] as const));
 
-  const handleEdit = () => onEdit?.(post);
-  const handleDuplicate = () => onDuplicate?.(post);
-  const handleDelete = () => onDelete?.(postId);
-  const handleReschedule = () => onReschedule?.(new Date());
-
-  const statusLabel =
-    postStatus.charAt(0).toUpperCase() + postStatus.slice(1);
   const scheduledLabel = postScheduledTime.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -102,7 +73,73 @@ const PostCard: React.FC<PostCardProps> = ({
     minute: "2-digit",
   });
 
-  const platformsForDisplay = postPlatforms;
+  const handleEdit = () => onEdit?.(post);
+  const handleDuplicate = () => onDuplicate?.(post);
+  const handleDelete = () => onDelete?.(postId);
+  const handleReschedule = () => onReschedule?.(new Date());
+
+  const actionButtons = (
+    <div className="flex items-center gap-0.5">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleEdit}
+            className="h-8 w-8 p-0"
+            aria-label="Edit post"
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent><p>Edit post</p></TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDuplicate}
+            className="h-8 w-8 p-0"
+            aria-label="Duplicate post"
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent><p>Duplicate post</p></TooltipContent>
+      </Tooltip>
+      {!isListView && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleReschedule}
+              className="h-8 w-8 p-0"
+              aria-label="Reschedule post"
+            >
+              <Calendar className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent><p>Reschedule post</p></TooltipContent>
+        </Tooltip>
+      )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDelete}
+            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            aria-label="Delete post"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent><p>Delete post</p></TooltipContent>
+      </Tooltip>
+    </div>
+  );
 
   if (isListView) {
     const hasMedia = !!postMedia;
@@ -111,19 +148,19 @@ const PostCard: React.FC<PostCardProps> = ({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18 }}
+          transition={{ duration: 0.15 }}
         >
-          <Card className="w-full border border-border/50 bg-card shadow-sm">
+          <Card className="w-full border border-border bg-card transition-colors hover:bg-secondary/30">
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center gap-3">
-                <div className="shrink-0 text-xs sm:text-sm text-muted-foreground tabular-nums flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
+                <div className="flex shrink-0 items-center gap-2 font-mono text-xs text-muted-foreground tabular-nums">
+                  <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>{scheduledLabel}</span>
                 </div>
 
-                <div className="min-w-0 flex-1 flex items-center gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                   {hasMedia ? (
-                    <div className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 overflow-hidden rounded-md bg-muted">
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
                       <img
                         src={postMedia}
                         alt=""
@@ -131,25 +168,15 @@ const PostCard: React.FC<PostCardProps> = ({
                       />
                     </div>
                   ) : (
-                    <div className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-md bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 border border-border/40" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+                      {platformIcons.twitter}
+                    </div>
                   )}
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1.5">
-                        {platformsForDisplay.map((platform, idx) => (
-                          <div
-                            key={`${platform}-${idx}`}
-                            className="flex items-center"
-                            title={platformLabels[platform]}
-                          >
-                            {platformIcons[platform]}
-                          </div>
-                        ))}
-                      </div>
-                      <Badge className={statusColors[postStatus]}>
-                        {statusLabel}
-                      </Badge>
+                      {platformIcons.twitter}
+                      <StatusBadge status={postStatus} />
                     </div>
                     <p className="mt-1 truncate text-sm text-foreground">
                       {postContent}
@@ -157,55 +184,7 @@ const PostCard: React.FC<PostCardProps> = ({
                   </div>
                 </div>
 
-                <div className="shrink-0 flex items-center gap-1">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleEdit}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Edit post</p>
-                    </TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleDuplicate}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Duplicate post</p>
-                    </TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleDelete}
-                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Delete post</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+                <div className="shrink-0">{actionButtons}</div>
               </div>
             </CardContent>
           </Card>
@@ -217,133 +196,52 @@ const PostCard: React.FC<PostCardProps> = ({
   return (
     <TooltipProvider>
       <motion.div
-        drag={!isListView}
-        dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-        dragElastic={0.2}
-        whileDrag={{ scale: 1.05, zIndex: 10 }}
-        whileHover={{ scale: 1.02 }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-        className={isListView ? "" : "cursor-grab active:cursor-grabbing"}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.15 }}
       >
         <Card
           className={cn(
-            "w-[300px] overflow-hidden border border-border/50 bg-card shadow-sm hover:shadow-md transition-shadow duration-200"
+            "w-full overflow-hidden border border-border bg-card transition-colors hover:border-primary/30 hover:bg-secondary/20"
           )}
         >
           <CardContent className="p-0">
-            {/* Platform Icons */}
-            <div className="flex items-center justify-between p-3 border-b border-border/50">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
               <div className="flex items-center gap-2">
-                {platformsForDisplay.map((platform, index) => (
-                  <div
-                    key={`${platform}-${index}`}
-                    className="flex items-center"
-                    title={platformLabels[platform]}
-                  >
-                    {platformIcons[platform]}
-                  </div>
-                ))}
+                {platformIcons.twitter}
+                <span className="text-xs text-muted-foreground">X</span>
               </div>
-              <Badge className={statusColors[postStatus]}>
-                {statusLabel}
-              </Badge>
+              <StatusBadge status={postStatus} />
             </div>
 
-            {/* Content Preview */}
             <div className="p-3">
               {postMedia ? (
                 <div className="space-y-3">
-                  <div className="aspect-video w-full overflow-hidden rounded-lg bg-muted">
+                  <div className="aspect-video w-full overflow-hidden rounded-md bg-muted">
                     <img
                       src={postMedia}
                       alt=""
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  <p className="text-sm text-foreground line-clamp-3 leading-relaxed">
+                  <p className="line-clamp-3 text-sm leading-relaxed text-foreground">
                     {postContent}
                   </p>
                 </div>
               ) : (
-                <div className="rounded-lg border border-border/40 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 px-4 py-5">
-                  <p className="text-center text-base font-semibold leading-snug text-foreground line-clamp-4">
-                    {postContent}
-                  </p>
-                </div>
+                <p className="line-clamp-4 text-sm leading-relaxed text-foreground">
+                  {postContent}
+                </p>
               )}
 
-              {/* Scheduled Time */}
-              <div className="mt-3 text-xs text-muted-foreground flex items-center">
-                <Calendar className="h-3 w-3 mr-1" />
+              <div className="mt-3 flex items-center font-mono text-xs text-muted-foreground tabular-nums">
+                <Calendar className="mr-1.5 h-3 w-3" aria-hidden="true" />
                 {scheduledLabel}
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex justify-end p-2 bg-muted/30">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleEdit}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Edit post</p>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleDuplicate}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Duplicate post</p>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleReschedule}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Calendar className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Reschedule post</p>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleDelete}
-                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Delete post</p>
-                </TooltipContent>
-              </Tooltip>
+            <div className="flex justify-end border-t border-border bg-muted/20 px-2 py-1.5">
+              {actionButtons}
             </div>
           </CardContent>
         </Card>

@@ -6,7 +6,7 @@ import AuthSuccess from "./pages/AuthSuccess";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import routes from "./tempo-routes";
-import { Loader2 } from "lucide-react";
+import { Skeleton } from "./components/ui/skeleton";
 import { Toaster } from "./components/ui/toaster";
 
 function AppRoutes() {
@@ -32,19 +32,19 @@ function AppRoutes() {
   );
 }
 
+function AppLoadingFallback() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6">
+      <Skeleton className="h-8 w-32" />
+      <Skeleton className="h-4 w-48" />
+    </div>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
-      <Suspense
-        fallback={
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-              <p className="text-gray-600">Loading...</p>
-            </div>
-          </div>
-        }
-      >
+      <Suspense fallback={<AppLoadingFallback />}>
         <AppRoutes />
         <Toaster />
       </Suspense>
